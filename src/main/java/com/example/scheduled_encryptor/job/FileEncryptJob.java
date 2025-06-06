@@ -7,53 +7,63 @@ import javax.crypto.spec.SecretKeySpec;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
-
-import com.example.scheduled_encryptor.ScheduledEncryptorApplication;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.DirectoryStream;
 import java.io.IOException;
+import java.util.Iterator;
 
+import org.springframework.boot.SpringApplication;
 
-
+@Component
 public class FileEncryptJob implements Job {
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
         Path inputDir = Paths.get("C:/Users/C22684/eclipse-workspace/scheduled_encryptor/src/main/resources/static/data/input");
         Path outputDir = Paths.get("C:/Users/C22684/eclipse-workspace/scheduled_encryptor/src/main/resources/static/data/encrypted");
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(inputDir)) {
-            for (Path file : stream) {
-            	if(file!=null) {
-	                if (Files.isRegularFile(file)) {
-	                    
-	                    byte[] data = Files.readAllBytes(file);
-	                    byte[] encryptedData = encrypt(data);
-	
-	                    Path targetFile = outputDir.resolve(file.getFileName().toString() + ".enc");
-	                    Files.write(targetFile, encryptedData);
-	
-	                    //Files.delete(file); 
-	                    Path processedDir = Paths.get("C:/Users/C22684/eclipse-workspace/scheduled_encryptor/src/main/resources/static/data/processed");
-	                    Files.createDirectories(processedDir);
-	
-	                    Path movedFile = processedDir.resolve(file.getFileName());
-	                    Files.move(file, movedFile);
-	
-	
-	                    System.out.println("Encrypted one file: " + file.getFileName());
-	                    break; 
-	                }
-            	}
-            	else {
-            		inputDir = Paths.get("C:/Users/C22684/eclipse-workspace/scheduled_encryptor/src/main/resources/static/data/encrypted");
-                    outputDir = Paths.get("C:/Users/C22684/eclipse-workspace/scheduled_encryptor/src/main/resources/static/data/input");
-                    
-            	}
+        try {
+            Files.createDirectories(inputDir);
+            Files.createDirectories(outputDir);
+
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(inputDir)) {
+                Iterator<Path> iterator = stream.iterator();
+
+                if (!iterator.hasNext()) {
+                    System.out.println("No files found. Shutting down the application...");
+                    int exitCode = SpringApplication.exit(applicationContext, () -> 0);
+                    System.exit(exitCode);
+                }
+
+                while (iterator.hasNext()) {
+                    Path file = iterator.next();
+
+                    if (Files.isRegularFile(file)) {
+                        byte[] data = Files.readAllBytes(file);
+                        byte[] encryptedData = encrypt(data);
+
+                        Path targetFile = outputDir.resolve(file.getFileName().toString() + ".enc");
+                        Files.write(targetFile, encryptedData);
+
+                        Path processedDir = Paths.get("C:/Users/C22684/eclipse-workspace/scheduled_encryptor/src/main/resources/static/data/processed");
+                        Files.createDirectories(processedDir);
+
+                        Path movedFile = processedDir.resolve(file.getFileName());
+                        Files.move(file, movedFile);
+
+                        System.out.println("Encrypted and moved file: " + file.getFileName());
+                        break;
+                    }
+                }
             }
         } catch (IOException e) {
             throw new JobExecutionException("File processing failed", e);
